@@ -4,10 +4,12 @@ import re
 import ipaddress
 from collections import namedtuple
 import pprint
+from fpdf import FPDF
 
 parser = argparse.ArgumentParser(description='Custom Port Scanner')
 parser.add_argument('hosts', help='hosts to be scanned seperated by commas. Accepts single ips, ranges seperated by "-" and cidr')
 parser.add_argument('-p', '--ports', help='ports to be scanned. Defaults to common ports 1-1024')
+parser.add_argument('-f', '--file', help='read hosts from file')
 parser.add_argument('--tcp', help='scan tcp ports. Defaults to true')
 parser.add_argument('--tcp-timeout', help='timeout in seconds for tcp scan. Default 5 sec')
 parser.add_argument('--udp', help='scan udp ports')
@@ -69,6 +71,13 @@ def parse_hosts(host_args, args):
             hosts.append(host)
     return hosts
 
+def parse_file(host_file, args):
+    hosts = list()
+    with open(host_file, 'r') as file:
+        for line in file:
+            hosts += parse_hosts(line.strip(), args)
+    return hosts
+
 def parse_ports(port_args, args):
     if not port_args:
         return list(range(1, 1024))
@@ -107,9 +116,19 @@ def ping_hosts(hosts, args):
             hosts_down.append(unanswered[0].dst)
     return hosts_alive, hosts_down
 
+def make_pdf():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 16)
+    pdf.cell(40, 10, 'Hello World!')
+    pdf.output('tuto1.pdf', 'F')
+
 print("Starting scanner ...")
 extra_args = parse_extra_args(args)
 hosts = parse_hosts(args.hosts, extra_args)
+if args.file:
+    file_hosts = parse_file(args.file, args)
+    hosts += file_hosts
 ports = parse_ports(args.ports, extra_args)
 print("Starting ping sweep ...")
 hosts_alive, hosts_down = ping_hosts(hosts, extra_args)
