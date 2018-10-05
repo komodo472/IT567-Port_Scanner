@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser(description='Custom Port Scanner')
 parser.add_argument('hosts', help='hosts to be scanned seperated by commas. Accepts single ips, ranges seperated by "-" and cidr')
 parser.add_argument('-p', '--ports', help='ports to be scanned. Defaults to common ports 1-1024')
 parser.add_argument('-f', '--file', help='read hosts from file')
+parser.add_argument('--pdf', help='output to pdf with given name')
 parser.add_argument('--tcp', help='scan tcp ports. Defaults to true')
 parser.add_argument('--tcp-timeout', help='timeout in seconds for tcp scan. Default 5 sec')
 parser.add_argument('--udp', help='scan udp ports')
@@ -116,12 +117,28 @@ def ping_hosts(hosts, args):
             hosts_down.append(unanswered[0].dst)
     return hosts_alive, hosts_down
 
-def make_pdf():
+def make_pdf(name, tcp_ports, udp_ports):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font('Arial', 'B', 16)
-    pdf.cell(40, 10, 'Hello World!')
-    pdf.output('tuto1.pdf', 'F')
+    pdf.set_font('Courier', 'I', 14)
+    pdf.set_draw_color(255, 255, 255)
+    effective_page_width = pdf.w - 2*pdf.l_margin
+    pdf.cell(40,10, 'Open TCP Ports:')
+    pdf.ln()
+    for host in tcp_ports:
+        pdf.cell(40,10,host)
+        pdf.ln()
+        pdf.cell(40,10, str(tcp_ports[host]))
+        pdf.ln()
+    pdf.ln()
+    pdf.cell(40,10, 'Open UDP Ports:')
+    pdf.ln()
+    for host in udp_ports:
+        pdf.cell(40,10,host)
+        pdf.ln()
+        pdf.cell(40,10, str(udp_ports[host]))
+        pdf.ln()
+    pdf.output(name + '.pdf')
 
 print("Starting scanner ...")
 extra_args = parse_extra_args(args)
@@ -149,11 +166,17 @@ if len(hosts_alive) == 0:
     exit(0)
 
 pp = pprint.PrettyPrinter(indent=4)
+open_tcp_ports = dict()
 if extra_args.tcp:
     print("Starting tcp scan ...")
     open_tcp_ports = scan_tcp(hosts_alive, ports, extra_args)
     pp.pprint(open_tcp_ports)
+open_udp_ports = dict()
 if extra_args.udp:
     print("Starting udp scan ...")
     open_udp_ports = scan_udp(hosts_alive, ports, extra_args)
     pp.pprint(open_udp_ports)
+
+if args.pdf:
+    print("Making pdf with name %s.pdf" % args.pdf)
+    make_pdf(args.pdf, open_tcp_ports, open_udp_ports)
