@@ -3,21 +3,59 @@ from scapy.all import *
 import re
 import ipaddress
 from collections import namedtuple
+import pprint
 
 parser = argparse.ArgumentParser(description='Custom Port Scanner')
 parser.add_argument('hosts', help='hosts to be scanned seperated by commas. Accepts single ips, ranges seperated by "-" and cidr')
 parser.add_argument('-p', '--ports', help='ports to be scanned. Defaults to common ports 1-1024')
 parser.add_argument('--tcp', help='scan tcp ports. Defaults to true')
+parser.add_argument('--tcp-timeout', help='timeout in seconds for tcp scan. Default 5 sec')
 parser.add_argument('--udp', help='scan udp ports')
-parser.add_argument('--timeout', help='timeout in seconds for all functions. Default 5 sec')
+parser.add_argument('--udp-timeout', help='timeout in seconds for udp scan. Default 5 sec')
+parser.add_argument('--udp-interval', help='interval in seconds between sending udp packets. Default 0 sec. WARNING! This option can take a really long time if changed. Longer interval will provide better results')
+parser.add_argument('--udp-retry', help='number of time to resend unanswered packetes for udp scan. Defaults to 1')
+parser.add_argument('--ping-timeout', help='timeout in seconds for ping sweep. Default 5 sec')
 parser.add_argument('-v','--verbose', help='verbose output', action='store_true')
 args = parser.parse_args()
 
+conf.L3socket=L3RawSocket
+
 def scan_tcp(hosts, ports, args):
-    return
+    host_res = {}
+    for host in hosts:
+        source_port = RandShort()
+        packet = IP(dst=host)/TCP(sport=source_port, dport=ports, flags='S')
+        ans, unans = sr(packet, timeout=args.tcp_timeout, verbose=args.verbose)
+        open_ports = list()
+        for answered in ans:
+            if answered[1][1].flags == 'SA':
+                open_ports.append(int(answered[1].sport))
+        sr(IP(dst=host)/TCP(sport=source_port, dport=open_ports, flags='R'), timeout=args.tcp_timeout, verbose=args.verbose)
+        if len(open_ports) != 0:
+            host_res[host] = open_ports
+    return host_res
 
 def scan_udp(hosts, ports, args):
-    return
+    host_res = {}
+    for host in hosts:
+        open_ports = list()
+        #for port in ports:
+        source_port = RandShort()
+        packet = IP(dst=host)/UDP(sport=source_port, dport=ports)
+        ans, unans = sr(packet, timeout=args.udp_timeout, verbose=args.verbose, inter=args.udp_interval, retry=args.udp_retry)
+        """for answered in ans:
+            if hasattr(answered[1][1], 'type') and hasattr(answered[1][1], 'code') and answered[1][1].type == 3 and answered[1][1].code == 3:
+                print("Port closed: %d" % int(answered[1].dport))
+            else:
+                print("Unkown response")"""
+        for unanswered in unans:
+            #print("Port open: %s" % )
+            port = int(unanswered[1].default_fields['dport'])
+            if port not in open_ports:
+                open_ports.append(port)
+        if len(open_ports) != 0:
+            host_res[host] = open_ports
+    return host_res
 
 def parse_hosts(host_args, args):
     host_list = host_args.split(',')
@@ -46,11 +84,15 @@ def parse_ports(port_args, args):
     return ports
 
 def parse_extra_args(args):
-    extra_args = namedtuple('args', ['verbose', 'tcp', 'udp'])
-    extra_args.timeout = 5 if not args.timeout else int(args.timeout)
+    extra_args = namedtuple('args', ['verbose', 'tcp_timeout', 'udp_timeout', 'udp_interval', 'udp_retry', 'ping_timeout', 'tcp', 'udp'])
+    extra_args.tcp_timeout = 5 if not args.tcp_timeout else int(args.tcp_timeout)
+    extra_args.udp_timeout = 5 if not args.udp_timeout else int(args.udp_timeout)
+    extra_args.udp_interval = 0 if not args.udp_interval else int(args.udp_interval)
+    extra_args.udp_retry = 1 if not args.udp_retry else int(args.udp_retry)
+    extra_args.ping_timeout = 5 if not args.ping_timeout else int(args.ping_timeout)
     extra_args.verbose = True if args.verbose else False
-    extra_args.tcp = False if not args.tcp else True
-    extra_args.udp = True if args.udp else False
+    extra_args.tcp = False if args.tcp and args.tcp == 'False' else True
+    extra_args.udp = True if args.udp and args.udp == 'True' else False
     return extra_args
 
 def ping_hosts(hosts, args):
@@ -58,7 +100,7 @@ def ping_hosts(hosts, args):
     hosts_down = list()
     for host in hosts:
         packet = IP(dst=host)/ICMP()
-        ans, unans = sr(packet, timeout=args.timeout, verbose=args.verbose)
+        ans, unans = sr(packet, timeout=args.ping_timeout, verbose=args.verbose)
         for answered in ans:
             hosts_alive.append(answered[1].src)
         for unanswered in unans:
@@ -83,9 +125,16 @@ if extra_args.verbose:
 
 print("Continuing with alive hosts ...")
 
+if len(hosts_alive) == 0:
+    print("No alive hosts. Terminating")
+    exit(0)
+
+pp = pprint.PrettyPrinter(indent=4)
 if extra_args.tcp:
     print("Starting tcp scan ...")
-    scan_tcp(hosts_alive, ports, extra_args)
+    open_tcp_ports = scan_tcp(hosts_alive, ports, extra_args)
+    pp.pprint(open_tcp_ports)
 if extra_args.udp:
     print("Starting udp scan ...")
-    scan_udp(hosts_alive, ports, extra_args)
+    open_udp_ports = scan_udp(hosts_alive, ports, extra_args)
+    pp.pprint(open_udp_ports)
