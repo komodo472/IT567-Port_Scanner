@@ -1,3 +1,4 @@
+# https://github.com/komodo472/IT567-Port_Scanner
 import argparse
 from scapy.all import *
 import re
@@ -16,7 +17,7 @@ parser.add_argument('--tcp-timeout', help='timeout in seconds for tcp scan. Defa
 parser.add_argument('--udp', help='scan udp ports')
 parser.add_argument('--udp-timeout', help='timeout in seconds for udp scan. Default 5 sec')
 parser.add_argument('--udp-interval', help='interval in seconds between sending udp packets. Default 0 sec. WARNING! This option can take a really long time if changed. Longer interval will provide better results')
-parser.add_argument('--udp-retry', help='number of time to resend unanswered packetes for udp scan. Defaults to 1')
+parser.add_argument('--udp-retry', help='number of time to resend unanswered packetes for udp scan. Defaults to 0')
 parser.add_argument('--ping-timeout', help='timeout in seconds for ping sweep. Default 5 sec')
 parser.add_argument('-v','--verbose', help='verbose output', action='store_true')
 args = parser.parse_args()
@@ -24,6 +25,7 @@ args = parser.parse_args()
 conf.L3socket=L3RawSocket
 
 def scan_tcp(hosts, ports, args):
+    # Scans tcp ports
     host_res = {}
     for host in hosts:
         source_port = RandShort()
@@ -39,6 +41,7 @@ def scan_tcp(hosts, ports, args):
     return host_res
 
 def scan_udp(hosts, ports, args):
+    # Scans udp ports
     host_res = {}
     for host in hosts:
         open_ports = list()
@@ -61,6 +64,7 @@ def scan_udp(hosts, ports, args):
     return host_res
 
 def parse_hosts(host_args, args):
+    # Parses host input
     host_list = host_args.split(',')
     hosts = list()
     for host in host_list:
@@ -73,6 +77,7 @@ def parse_hosts(host_args, args):
     return hosts
 
 def parse_file(host_file, args):
+    # Parses host input file
     hosts = list()
     with open(host_file, 'r') as file:
         for line in file:
@@ -80,6 +85,7 @@ def parse_file(host_file, args):
     return hosts
 
 def parse_ports(port_args, args):
+    # Parses port input
     if not port_args:
         return list(range(1, 1024))
     port_list = port_args.split(',')
@@ -94,6 +100,7 @@ def parse_ports(port_args, args):
     return ports
 
 def parse_extra_args(args):
+    # Parses extra arguments and sets default values
     extra_args = namedtuple('args', ['verbose', 'tcp_timeout', 'udp_timeout', 'udp_interval', 'udp_retry', 'ping_timeout', 'tcp', 'udp'])
     extra_args.tcp_timeout = 5 if not args.tcp_timeout else int(args.tcp_timeout)
     extra_args.udp_timeout = 5 if not args.udp_timeout else int(args.udp_timeout)
@@ -106,6 +113,7 @@ def parse_extra_args(args):
     return extra_args
 
 def ping_hosts(hosts, args):
+    # Pings hosts
     hosts_alive = list()
     hosts_down = list()
     for host in hosts:
@@ -118,6 +126,7 @@ def ping_hosts(hosts, args):
     return hosts_alive, hosts_down
 
 def make_pdf(name, tcp_ports, udp_ports):
+    # Prints pdf report
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font('Courier', 'I', 14)
